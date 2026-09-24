@@ -93,11 +93,41 @@ Do not use Jev for:
 
 Use Jev only where a fuzzy semantic judgement is useful.
 
-OpenRouter exposes Jev through its Decisions API.
+### Verified API facts
 
-Before implementing the integration, inspect the current OpenRouter documentation and SDK support for Jev / Decisions rather than assuming it behaves like the normal chat-completions API.
+These were confirmed against the OpenRouter documentation on 2026-09-24. They are recorded here so the implementer does not have to rediscover them, but the docs remain the source of truth if they have since changed.
 
-Use the latest Jev model alias where practical rather than unnecessarily pinning an old version.
+* Endpoint: `POST https://openrouter.ai/api/alpha/decisions` — note **alpha**. This is a separate API surface from chat completions and does not behave like it.
+* Model: `typesafe/jev-1.13`, with a moving alias `~typesafe/jev-latest`.
+* Authentication: an ordinary OpenRouter API key. No separate TypeSafe account is required.
+* Context window: 32,000 tokens.
+* Latency: roughly 70–500ms.
+* Pricing: $0.042 per million input tokens, **output tokens are free**. Each response carries a `usage.cost` field in USD. A demo of this size costs fractions of a cent per hour.
+* The official OpenRouter TypeScript SDK supports the Decisions API, so prefer it over hand-rolled `fetch`.
+
+Jev answers three kinds of typed question, called primitives:
+
+* **Choice** — "which one of these options?" Returns the winning label, a probability for every label (including labels at 0, summing to 1), and a `confidence` value.
+* **Noul** — "does this condition hold?" Returns the probability of yes.
+* **Score** — "where does this fall on an ordered scale?" Returns a probability-weighted position plus per-level probabilities and confidence.
+
+`confidence` (0 to 1) measures how *peaked* the distribution is, not how correct it is. A flat distribution gives low confidence, a peaked one high confidence.
+
+Multiple questions can be batched into a single request at no extra round trip.
+
+Probabilities vary slightly between calls on identical input. Treat them as threshold bands, never as exact values to compare for equality.
+
+### Model pinning
+
+Pin `typesafe/jev-1.13` explicitly in code rather than using the `~typesafe/jev-latest` alias.
+
+This repository is intended as a reference other projects copy from. A reference whose behaviour changes silently when an alias moves is a poor reference, and the alpha status of the endpoint makes that more likely, not less. Mention the alias in a comment so a reader knows it exists and can opt into it deliberately.
+
+Sources:
+
+* <https://openrouter.ai/docs/guides/community/jev>
+* <https://openrouter.ai/blog/insights/what-is-jev/>
+* <https://openrouter.ai/typesafe/jev-1.13>
 
 ---
 
@@ -198,6 +228,26 @@ Do not ask Jev to return:
 
 Keep the model's action space intentionally tiny.
 
+### Loop scheduling
+
+This is the part most likely to make the demo look broken, so it is specified rather than left to judgement.
+
+**Separate the decision cadence from the render loop.** The simulation renders and moves continuously at animation frame rate, always acting on the *most recent* decision it has. It never blocks, stalls or skips frames waiting for a response. Jev changes the character's *intent*; it does not drive the character's *movement*.
+
+**Single-flight the requests.** Jev's latency range tops out around the 500ms tick interval, so ticks will sometimes overlap. If a request is already in flight when the next tick is due, skip that tick rather than queueing or racing it. Never allow two decisions to be in flight at once.
+
+**Discard stale responses.** If a response arrives for a state that has since been superseded, prefer the newer decision.
+
+**Fail soft.** On a request error, keep acting on the last known decision and surface the error in the debug panel. The simulation should never freeze because the API did.
+
+### Optional: demonstrate a second primitive
+
+The core requirement is a single **Choice** question returning one `JevAction`.
+
+If it costs little, also send a **Noul** question such as "is the character in immediate danger?" in the same request. Batched questions add no extra round trip, and this demonstrates two of Jev's three primitives in a repository whose purpose is to be a reference.
+
+Skip this if it complicates the code. One clear Choice is better than two muddled questions.
+
 ---
 
 ## Frontend
@@ -229,11 +279,14 @@ Include a compact debug panel showing:
 * current state sent to Jev
 * selected action
 * returned probabilities
+* returned confidence
 * request latency
 * whether a request is in flight
 * latest API error, if any
 
 Watching the probabilities change is part of the experiment.
+
+Show `confidence` prominently. It is the most legible signal that Jev is genuinely responding to the instruction: a decisive instruction should produce a peaked distribution, a vague or conflicted one a flat distribution. That contrast is the demo.
 
 The UI should be presentable enough to demonstrate quickly, but polish is secondary to clarity.
 
@@ -305,6 +358,17 @@ or otherwise place the key in frontend environment variables, because Vite-expos
 
 Provide an example environment file or setup instructions where useful, but never commit real secrets.
 
+### Protecting the key from abuse
+
+The deployed Worker is an unauthenticated proxy to a billed API on a public URL, and each open tab issues roughly two requests per second.
+
+User authentication remains a non-goal. However, add two cheap protections, because a shareable link should not become somebody else's free inference endpoint:
+
+* A rate limit on `/api/decide` in the Worker. Cloudflare's rate limiting binding is a few lines of `wrangler.jsonc` and needs no extra service.
+* A spend limit on the OpenRouter API key itself, set in the OpenRouter dashboard.
+
+Per-request cost is negligible; the concern is abuse volume, not demo usage.
+
 ---
 
 ## API boundary
@@ -341,6 +405,7 @@ The Worker calls Jev and returns a small frontend-friendly response such as:
 type DecisionResponse = {
   action: JevAction;
   probabilities: Record<JevAction, number>;
+  confidence: number;
   latencyMs: number;
 };
 ```
@@ -379,10 +444,15 @@ worker/
   openrouter.ts
   jev.ts
 
+scripts/
+  check-jev.ts
+
 SPEC.md
 README.md
 wrangler.jsonc
 ```
+
+`scripts/check-jev.ts` is a throwaway command-line harness that fires a handful of canned states at the decision layer and prints the resulting actions, probabilities and confidence. See implementation order below.
 
 This is guidance, not a requirement.
 
@@ -408,6 +478,24 @@ unless the OpenRouter/Jev integration genuinely requires them.
 The reusable capability being demonstrated is:
 
 **React/Vite web app → Cloudflare Worker → OpenRouter → Jev**
+
+---
+
+## Implementation order
+
+Build the risky part first.
+
+Criteria 1–4 and 6–8 below are plumbing that is already known to work. Criterion 5 — the character visibly changing behaviour when the instruction changes — is the only genuine unknown in this spike, and it depends entirely on how application state is serialised into Jev's question.
+
+Therefore:
+
+1. Write `worker/jev.ts` and `worker/openrouter.ts` first.
+2. Write `scripts/check-jev.ts`: a small script that sends several hand-written states to the decision layer and prints the results. Include at least one pair that differs *only* in the instruction, for example "attack them, be reckless" versus "avoid everyone and get to the exit", with all other state identical.
+3. Confirm the probabilities actually swing between those two cases before writing any React.
+
+If they do not swing, that is a state-shaping problem, and it is far cheaper to discover it here than after the arena renders. Iterate on the phrasing of the state and the question until the contrast is unmistakable.
+
+Only then build the Worker route, the simulation and the UI.
 
 ---
 
@@ -442,7 +530,7 @@ The character should visibly change behaviour without any game logic being chang
 
 Do not add, unless required to prove the core integration:
 
-* authentication
+* authentication (rate limiting is not authentication, and is required — see above)
 * accounts
 * persistence
 * databases
