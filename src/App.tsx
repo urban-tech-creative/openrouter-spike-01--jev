@@ -48,6 +48,10 @@ export default function App() {
     setWorld(createWorld());
     setEpoch((e) => e + 1);
   };
+  const start = () => {
+    setWorld({ ...createWorld(), status: "running" });
+    setEpoch((e) => e + 1);
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -62,7 +66,7 @@ export default function App() {
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,640px)_1fr]">
           <div className="space-y-3">
-            <Arena world={world} action={loop.lastDecision?.action ?? null} enemyCount={ENEMY_COUNT} />
+            <Arena world={world} action={loop.lastDecision?.action ?? null} enemyCount={ENEMY_COUNT} onStart={start} />
             <InstructionInput current={instruction} onApply={applyInstruction} onReset={reset} />
           </div>
           <DebugPanel instruction={instruction} loop={loop} />

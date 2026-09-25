@@ -33,7 +33,7 @@ export function createWorld(): World {
     player: { pos: { x: 90, y: 330 }, health: 100 },
     enemies: ENEMY_SPAWNS.map((pos, i) => ({ id: i + 1, pos: { ...pos }, health: 100 })),
     exit: { x: 580, y: 60 },
-    status: "running",
+    status: "ready", // nothing moves and no decisions are requested until Start
     elapsedMs: 0,
   };
 }

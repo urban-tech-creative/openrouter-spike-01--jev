@@ -6,6 +6,6 @@ export type World = {
   player: { pos: Vec; health: number };
   enemies: Enemy[];
   exit: Vec;
-  status: "running" | "escaped" | "dead";
+  status: "ready" | "running" | "escaped" | "dead";
   elapsedMs: number;
 };

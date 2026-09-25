@@ -10,9 +10,9 @@ import {
 } from "../game/simulation.ts";
 import type { World } from "../game/types.ts";
 
-type Props = { world: World; action: JevAction | null; enemyCount: number };
+type Props = { world: World; action: JevAction | null; enemyCount: number; onStart: () => void };
 
-export function Arena({ world, action, enemyCount }: Props) {
+export function Arena({ world, action, enemyCount, onStart }: Props) {
   const { player, enemies, exit, status } = world;
   const inRange = (pos: { x: number; y: number }) => distance(pos, player.pos) <= ATTACK_RANGE;
   const anyInRange = enemies.some((e) => inRange(e.pos));
@@ -74,8 +74,17 @@ export function Arena({ world, action, enemyCount }: Props) {
         </svg>
 
         {status !== "running" && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-slate-950/70 text-2xl font-semibold">
-            {status === "escaped" ? "Escaped!" : "Defeated"}
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 rounded-lg bg-slate-950/70">
+            {status !== "ready" && (
+              <span className="text-2xl font-semibold">{status === "escaped" ? "Escaped!" : "Defeated"}</span>
+            )}
+            <button
+              type="button"
+              onClick={onStart}
+              className="rounded-md bg-emerald-600 px-5 py-2 font-medium hover:bg-emerald-500"
+            >
+              {status === "ready" ? "Start" : "Play again"}
+            </button>
           </div>
         )}
       </div>
