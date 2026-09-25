@@ -2,6 +2,11 @@
   "name": "openrouter-spike-01--jev",
   "private": true,
   "version": "0.0.0",
+  "description": "Urban Tech Creative spike: calling the Jev decision model through OpenRouter from a React/Vite app on Cloudflare Workers.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -4,7 +4,11 @@ A small Urban Tech Creative spike: **React/Vite app → Cloudflare Worker → Op
 
 A green character in a tiny arena follows a natural-language order ("Attack them. Be reckless.", "Avoid everyone and get to the exit."). Every ~500ms, [Jev](https://openrouter.ai/docs/guides/community/jev) (TypeSafe's decision model, served through OpenRouter's alpha Decisions API) picks one of up to six actions: fight, evade, head for the exit, grab a health pack, fire a freeze blast, or wait. Ordinary TypeScript then carries the action out. A debug panel shows the probabilities and confidence Jev returns.
 
-See [SPEC.md](SPEC.md) for the brief.
+**Try it live:** <https://openrouter-spike-01--jev.urban-tech-creative.workers.dev>
+
+![Jev Arena mid-game: under the order "Attack them. Be reckless.", Jev fires a freeze blast that catches three enemies, while the debug panel shows it torn between FREEZE (0.54) and charging in (0.46).](docs/arena.png)
+
+See [SPEC.md](SPEC.md) for the original brief.
 
 ## Run it locally
 
@@ -42,6 +46,7 @@ To call a decision model from another UTC project, copy these files:
 | --- | --- | --- |
 | `worker/openrouter.ts` | OpenRouter client + auth. | As-is. |
 | `worker/jev.ts` | Builds the Decisions request (state + typed questions), parses the answers into a small domain object. Pins `typesafe/jev-1.13`. | Change the actions, state description and questions. |
+| `worker/validate.ts` | Checks every field of a request, caps its size and drops unknown fields. Jev bills per input token, so a public endpoint that passes text through unchecked lets anyone run up the bill. | Adapt the fields. |
 | `worker/index.ts` | `POST /api/decide`: rate limit, validation, error handling. | Adapt the route. |
 | `shared/types.ts` | Browser ↔ Worker contract, with no OpenRouter types. | Adapt. |
 | `src/lib/useDecisionLoop.ts` | Polls decisions separately from rendering: single-flight, discards stale responses, fails soft. | Useful for any "AI sets intent every N ms" loop. |
@@ -121,3 +126,7 @@ The deployed Worker uses its own OpenRouter key with a low spend limit, separate
 4. Add the key as a Worker secret named `OPENROUTER_API_KEY`: `npx wrangler secret put OPENROUTER_API_KEY`, or in the dashboard under the Worker's Settings → Variables and Secrets (type **Secret**).
 
 Never put the key in a `VITE_*` variable. Vite bundles those into browser code.
+
+## Licence
+
+[MIT](LICENSE). It's a spike: copy whatever is useful.

@@ -3,6 +3,7 @@
 
 import { createOpenRouter } from "./openrouter.ts";
 import { decide } from "./jev.ts";
+import { InvalidRequest, MAX_BODY_BYTES, parseDecisionRequest } from "./validate.ts";
 import type { DecisionRequest } from "../shared/types.ts";
 
 export default {
@@ -22,14 +23,21 @@ export default {
       return Response.json({ error: "Rate limited" }, { status: 429 });
     }
 
+    // Reject oversized bodies before reading them: see validate.ts for why.
+    if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
+      return Response.json({ error: "Request too large" }, { status: 413 });
+    }
+    const text = await request.text();
+    if (text.length > MAX_BODY_BYTES) {
+      return Response.json({ error: "Request too large" }, { status: 413 });
+    }
+
     let body: DecisionRequest;
     try {
-      body = await request.json();
-    } catch {
-      return Response.json({ error: "Invalid JSON" }, { status: 400 });
-    }
-    if (typeof body?.instruction !== "string" || body.instruction.length > 500) {
-      return Response.json({ error: "instruction must be a string of at most 500 characters" }, { status: 400 });
+      body = parseDecisionRequest(JSON.parse(text));
+    } catch (err) {
+      const message = err instanceof InvalidRequest ? err.message : "Invalid JSON";
+      return Response.json({ error: message }, { status: 400 });
     }
 
     try {

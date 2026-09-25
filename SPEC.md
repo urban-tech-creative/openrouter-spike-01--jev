@@ -1,5 +1,7 @@
 # openrouter-spike-01--jev
 
+> **This is the original brief, kept as written.** The build followed it, but some details changed along the way: the demo grew from four actions to six (health packs and a freeze power), and the browser/Worker contract lives in `shared/`. See [README.md](README.md) for what was built and what was learned.
+
 ## Purpose
 
 This repository is a small technical spike for Urban Tech Creative exploring how to use **OpenRouter** from a deployed web project, using **TypeSafe Jev** as the first example model.

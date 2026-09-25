@@ -4,7 +4,8 @@
 export const JEV_ACTIONS = ["APPROACH_ENEMY", "EVADE", "SEEK_EXIT", "SEEK_HEALTH", "FREEZE", "WAIT"] as const;
 export type JevAction = (typeof JEV_ACTIONS)[number];
 
-export type Direction = "north" | "north-east" | "east" | "south-east" | "south" | "south-west" | "west" | "north-west";
+export const DIRECTIONS = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"] as const;
+export type Direction = (typeof DIRECTIONS)[number];
 
 type Place = { distance: number; direction: Direction };
 
