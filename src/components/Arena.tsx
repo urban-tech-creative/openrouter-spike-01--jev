@@ -5,6 +5,10 @@ import {
   BODY_RADIUS,
   DANGER_RANGE,
   ENEMY_DPS,
+  FREEZE_RADIUS,
+  FREEZE_RECHARGE_SECONDS,
+  FREEZE_SECONDS,
+  HEALTH_PACK_HEAL,
   PLAYER_DPS,
   distance,
 } from "../game/simulation.ts";
@@ -13,10 +17,12 @@ import type { World } from "../game/types.ts";
 type Props = { world: World; action: JevAction | null; enemyCount: number; onStart: () => void };
 
 export function Arena({ world, action, enemyCount, onStart }: Props) {
-  const { player, enemies, exit, status } = world;
+  const { player, enemies, healthPacks, exit, status } = world;
   const inRange = (pos: { x: number; y: number }) => distance(pos, player.pos) <= ATTACK_RANGE;
-  const anyInRange = enemies.some((e) => inRange(e.pos));
-  const attacking = action === "APPROACH_ENEMY" && anyInRange;
+  const hitting = (e: (typeof enemies)[number]) => e.frozenMs === 0 && inRange(e.pos);
+  const attacking = action === "APPROACH_ENEMY" && enemies.some((e) => inRange(e.pos));
+  const freezeReady = world.freezeRechargeMs === 0;
+  const blast = world.freezeBlastMs / 400; // 1 -> 0 as the blast fades
 
   return (
     <div className="space-y-2">
@@ -32,28 +38,60 @@ export function Arena({ world, action, enemyCount, onStart }: Props) {
             EXIT
           </text>
 
-          {/* The "dangerouslyClose" threshold Jev is told about. */}
-          <circle
-            cx={player.pos.x}
-            cy={player.pos.y}
-            r={DANGER_RANGE}
-            className="fill-none stroke-amber-400/40"
-            strokeDasharray="2 5"
-          />
-
-          {enemies.map((e) => (
-            <g key={e.id}>
-              <circle
-                cx={e.pos.x}
-                cy={e.pos.y}
-                r={ATTACK_RANGE}
-                className={inRange(e.pos) ? "fill-rose-500/15 stroke-rose-400" : "fill-none stroke-rose-400/45"}
-                strokeDasharray={inRange(e.pos) ? undefined : "3 4"}
-              />
-              <circle cx={e.pos.x} cy={e.pos.y} r={BODY_RADIUS} className="fill-rose-500" />
-              <HealthBar x={e.pos.x} y={e.pos.y - 22} value={e.health} colour="fill-rose-400" />
+          {healthPacks.map((h) => (
+            <g key={h.id} transform={`translate(${h.pos.x} ${h.pos.y})`}>
+              <rect x={-10} y={-10} width={20} height={20} rx={4} className="fill-lime-400/20 stroke-lime-400" />
+              <path d="M-2.5 -6.5h5v4h4v5h-4v4h-5v-4h-4v-5h4z" className="fill-lime-300" />
             </g>
           ))}
+
+          {/* The "dangerouslyClose" threshold Jev is told about. */}
+          <circle cx={player.pos.x} cy={player.pos.y} r={DANGER_RANGE} className="fill-none stroke-amber-400/40" strokeDasharray="2 5" />
+
+          {/* Freeze reach, shown only while the power is ready to use. */}
+          {freezeReady && (
+            <circle cx={player.pos.x} cy={player.pos.y} r={FREEZE_RADIUS} className="fill-none stroke-cyan-400/50" strokeDasharray="8 6" />
+          )}
+          {blast > 0 && (
+            <circle
+              cx={player.pos.x}
+              cy={player.pos.y}
+              r={FREEZE_RADIUS * (1.1 - blast * 0.3)}
+              className="fill-cyan-300 stroke-cyan-200"
+              fillOpacity={blast * 0.35}
+              strokeOpacity={blast}
+            />
+          )}
+
+          {enemies.map((e) => {
+            const frozen = e.frozenMs > 0;
+            return (
+              <g key={e.id}>
+                {!frozen && (
+                  <circle
+                    cx={e.pos.x}
+                    cy={e.pos.y}
+                    r={ATTACK_RANGE}
+                    className={hitting(e) ? "fill-rose-500/15 stroke-rose-400" : "fill-none stroke-rose-400/45"}
+                    strokeDasharray={hitting(e) ? undefined : "3 4"}
+                  />
+                )}
+                <circle
+                  cx={e.pos.x}
+                  cy={e.pos.y}
+                  r={BODY_RADIUS}
+                  className={frozen ? "fill-cyan-200 stroke-cyan-400" : "fill-rose-500"}
+                  strokeWidth={2}
+                />
+                {frozen && (
+                  <text x={e.pos.x} y={e.pos.y + 4} textAnchor="middle" className="fill-cyan-700 font-mono text-[10px] font-bold">
+                    {Math.ceil(e.frozenMs / 1000)}
+                  </text>
+                )}
+                <HealthBar x={e.pos.x} y={e.pos.y - 22} value={e.health} colour="fill-rose-400" />
+              </g>
+            );
+          })}
 
           <circle
             cx={player.pos.x}
@@ -69,7 +107,8 @@ export function Arena({ world, action, enemyCount, onStart }: Props) {
           </text>
 
           <text x={12} y={ARENA.height - 12} className="fill-slate-400 font-mono text-[12px]">
-            enemies {enemies.length}/{enemyCount} · health {Math.ceil(player.health)}
+            enemies {enemies.length}/{enemyCount} · health {Math.ceil(player.health)} · freeze{" "}
+            {freezeReady ? "READY" : `${Math.ceil(world.freezeRechargeMs / 1000)}s`}
           </text>
         </svg>
 
@@ -91,11 +130,18 @@ export function Arena({ world, action, enemyCount, onStart }: Props) {
 
       <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
         <li>
-          <Swatch className="border-emerald-400" /> Player attack range {ATTACK_RANGE}px: hits one enemy for{" "}
-          {PLAYER_DPS} hp/s, only while ordered to APPROACH_ENEMY
+          <Swatch className="border-emerald-400" /> Player attack range {ATTACK_RANGE}px: hits one enemy for {PLAYER_DPS}{" "}
+          hp/s, only while ordered to APPROACH_ENEMY
         </li>
         <li>
           <Swatch className="border-rose-400" /> Enemy attack range {ATTACK_RANGE}px: each hits for {ENEMY_DPS} hp/s
+        </li>
+        <li>
+          <Swatch className="border-cyan-400" /> Freeze reach {FREEZE_RADIUS}px (shown while ready): stops enemies for{" "}
+          {FREEZE_SECONDS}s, recharges in {FREEZE_RECHARGE_SECONDS}s
+        </li>
+        <li>
+          <Swatch className="border-lime-400 border-solid" /> Health pack: +{HEALTH_PACK_HEAL} hp, appears every 6–8s (max 2)
         </li>
         <li>
           <Swatch className="border-amber-400/60" /> "Dangerously close" ({DANGER_RANGE}px), as reported to Jev

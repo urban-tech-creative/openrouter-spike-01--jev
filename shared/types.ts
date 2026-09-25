@@ -1,27 +1,30 @@
 // The contract between the browser and the Worker. Deliberately provider-free:
 // nothing here mentions OpenRouter.
 
-export const JEV_ACTIONS = ["APPROACH_ENEMY", "EVADE", "SEEK_EXIT", "WAIT"] as const;
+export const JEV_ACTIONS = ["APPROACH_ENEMY", "EVADE", "SEEK_EXIT", "SEEK_HEALTH", "FREEZE", "WAIT"] as const;
 export type JevAction = (typeof JEV_ACTIONS)[number];
 
 export type Direction = "north" | "north-east" | "east" | "south-east" | "south" | "south-west" | "west" | "north-west";
 
+type Place = { distance: number; direction: Direction };
+
 export type DecisionRequest = {
   instruction: string;
   playerHealth: number;
-  nearestEnemy: {
-    distance: number;
-    direction: Direction;
-    dangerouslyClose: boolean;
-  } | null;
-  exit: {
-    distance: number;
-    direction: Direction;
-  };
+  nearestEnemy: (Place & { dangerouslyClose: boolean; frozen: boolean }) | null;
+  enemiesRemaining: number;
+  /** Unfrozen enemies close enough that FREEZE would catch them. */
+  enemiesInFreezeRange: number;
+  nearestHealthPack: Place | null;
+  /** 0 when the freeze power is ready to use. */
+  freezeRechargeSeconds: number;
+  exit: Place;
 };
 
 export type DecisionResponse = {
   action: JevAction;
+  /** Only the actions that were available this tick; the rest weren't offered to Jev. */
+  offered: JevAction[];
   probabilities: Record<JevAction, number>;
   /** 0-1: how peaked the distribution is, not how correct the answer is. */
   confidence: number;

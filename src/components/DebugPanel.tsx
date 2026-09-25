@@ -21,19 +21,22 @@ export function DebugPanel({ instruction, loop }: Props) {
         <Bar value={d?.confidence ?? 0} className="bg-amber-400" />
       </Section>
 
-      <Section title="Action probabilities">
+      <Section title="Action probabilities (greyed: not available, so not offered)">
         <div className="space-y-1.5">
           {JEV_ACTIONS.map((a) => {
             const p = d?.probabilities[a] ?? 0;
             const chosen = d?.action === a;
+            // Actions that don't apply right now (FREEZE recharging, no health
+            // pack, no enemies) aren't offered to Jev at all.
+            const offered = !d || d.offered.includes(a);
             return (
-              <div key={a} className="grid grid-cols-[8.5rem_1fr_3rem] items-center gap-2">
+              <div key={a} className={`grid grid-cols-[8.5rem_1fr_3rem] items-center gap-2 ${offered ? "" : "opacity-30"}`}>
                 <span className={`font-mono text-xs ${chosen ? "text-emerald-300" : "text-slate-400"}`}>
                   {chosen ? "▶ " : ""}
                   {a}
                 </span>
                 <Bar value={p} className={chosen ? "bg-emerald-400" : "bg-slate-500"} />
-                <span className="text-right font-mono text-xs tabular-nums">{p.toFixed(2)}</span>
+                <span className="text-right font-mono text-xs tabular-nums">{offered ? p.toFixed(2) : "n/a"}</span>
               </div>
             );
           })}

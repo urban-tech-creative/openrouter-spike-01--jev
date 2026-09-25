@@ -2,7 +2,10 @@
 // Nothing in here knows about Jev, OpenRouter or React.
 
 import type { DecisionRequest, Direction, JevAction } from "../../shared/types.ts";
+import { FREEZE_RADIUS, FREEZE_RECHARGE_SECONDS, FREEZE_SECONDS, HEALTH_PACK_HEAL } from "../../shared/rules.ts";
 import type { Vec, World } from "./types.ts";
+
+export { FREEZE_RADIUS, FREEZE_RECHARGE_SECONDS, FREEZE_SECONDS, HEALTH_PACK_HEAL };
 
 export const ARENA = { width: 640, height: 420 };
 
@@ -15,8 +18,14 @@ export const ATTACK_RANGE = 26;
 /** Below this distance the state sent to Jev says the nearest enemy is "dangerouslyClose". */
 export const DANGER_RANGE = 70;
 const EXIT_RANGE = 22;
-export const ENEMY_DPS = 6; // damage per second each enemy deals while in range
+export const ENEMY_DPS = 10; // damage per second each enemy deals while in range
 export const PLAYER_DPS = 60; // damage per second the player deals to one enemy when attacking
+
+export const HEALTH_PACK_PICKUP_RANGE = 24;
+const MAX_HEALTH_PACKS = 2;
+const FIRST_HEALTH_PACK_MS = 4000;
+const HEALTH_PACK_INTERVAL_MS: [number, number] = [6000, 8000];
+const FREEZE_BLAST_VISUAL_MS = 400;
 
 // Spread out so they arrive in ones and twos rather than all at once.
 const ENEMY_SPAWNS: Vec[] = [
@@ -31,20 +40,30 @@ const ENEMY_SPAWNS: Vec[] = [
 export function createWorld(): World {
   return {
     player: { pos: { x: 90, y: 330 }, health: 100 },
-    enemies: ENEMY_SPAWNS.map((pos, i) => ({ id: i + 1, pos: { ...pos }, health: 100 })),
+    enemies: ENEMY_SPAWNS.map((pos, i) => ({ id: i + 1, pos: { ...pos }, health: 100, frozenMs: 0 })),
+    healthPacks: [],
     exit: { x: 580, y: 60 },
+    freezeRechargeMs: 0,
+    freezeBlastMs: 0,
+    nextHealthPackMs: FIRST_HEALTH_PACK_MS,
+    nextId: ENEMY_SPAWNS.length + 1,
     status: "ready", // nothing moves and no decisions are requested until Start
     elapsedMs: 0,
   };
 }
 
-export function step(world: World, action: JevAction | null, dtMs: number): World {
+/** `random` is injectable so balance can be tested reproducibly outside the browser. */
+export function step(world: World, action: JevAction | null, dtMs: number, random = Math.random): World {
   if (world.status !== "running") return world;
   const dt = dtMs / 1000;
 
   let player = { ...world.player };
-  let enemies = world.enemies.map((e) => ({ ...e }));
-  const nearest = nearestEnemy(player.pos, enemies);
+  let enemies = world.enemies.map((e) => ({ ...e, frozenMs: Math.max(0, e.frozenMs - dtMs) }));
+  let healthPacks = world.healthPacks;
+  let { freezeRechargeMs, freezeBlastMs, nextHealthPackMs, nextId } = world;
+  freezeRechargeMs = Math.max(0, freezeRechargeMs - dtMs);
+  freezeBlastMs = Math.max(0, freezeBlastMs - dtMs);
+  const nearest = nearestOf(player.pos, enemies);
 
   // 1. Carry out Jev's latest decision.
   switch (action) {
@@ -58,11 +77,29 @@ export function step(world: World, action: JevAction | null, dtMs: number): Worl
         }
       }
       break;
-    case "EVADE":
-      if (nearest) player.pos = moveToward(player.pos, nearest.pos, -PLAYER_SPEED * dt);
+    case "EVADE": {
+      const away = fleeDirection(player.pos, enemies);
+      if (away) player.pos = { x: player.pos.x + away.x * PLAYER_SPEED * dt, y: player.pos.y + away.y * PLAYER_SPEED * dt };
       break;
+    }
     case "SEEK_EXIT":
       player.pos = moveToward(player.pos, world.exit, PLAYER_SPEED * dt);
+      break;
+    case "SEEK_HEALTH": {
+      const pack = nearestOf(player.pos, healthPacks);
+      if (pack) player.pos = moveToward(player.pos, pack.pos, PLAYER_SPEED * dt);
+      break;
+    }
+    case "FREEZE":
+      // The decision stays current until the next one arrives, so this only
+      // fires once: after that the power is recharging and FREEZE is a no-op.
+      if (freezeRechargeMs === 0) {
+        for (const e of enemies) {
+          if (distance(e.pos, player.pos) <= FREEZE_RADIUS) e.frozenMs = FREEZE_SECONDS * 1000;
+        }
+        freezeRechargeMs = FREEZE_RECHARGE_SECONDS * 1000;
+        freezeBlastMs = FREEZE_BLAST_VISUAL_MS;
+      }
       break;
     case "WAIT":
     case null:
@@ -71,8 +108,16 @@ export function step(world: World, action: JevAction | null, dtMs: number): Worl
   player.pos = clampToArena(player.pos);
   enemies = enemies.filter((e) => e.health > 0);
 
-  // 2. Enemies close in and hurt the player on contact.
+  // 2. Pick up any health pack the player is touching.
+  const touching = healthPacks.filter((h) => distance(h.pos, player.pos) <= HEALTH_PACK_PICKUP_RANGE);
+  if (touching.length) {
+    player.health = Math.min(100, player.health + HEALTH_PACK_HEAL * touching.length);
+    healthPacks = healthPacks.filter((h) => !touching.includes(h));
+  }
+
+  // 3. Unfrozen enemies close in and hurt the player when in range.
   for (const enemy of enemies) {
+    if (enemy.frozenMs > 0) continue;
     if (distance(enemy.pos, player.pos) > ATTACK_RANGE * 0.8) {
       enemy.pos = moveToward(enemy.pos, player.pos, ENEMY_SPEED * dt);
     }
@@ -82,28 +127,90 @@ export function step(world: World, action: JevAction | null, dtMs: number): Worl
   }
   separate(enemies);
 
+  // 4. Health packs appear at random places every few seconds, up to a cap.
+  nextHealthPackMs -= dtMs;
+  if (nextHealthPackMs <= 0) {
+    const [lo, hi] = HEALTH_PACK_INTERVAL_MS;
+    nextHealthPackMs = lo + random() * (hi - lo);
+    if (healthPacks.length < MAX_HEALTH_PACKS) {
+      healthPacks = [...healthPacks, { id: nextId++, pos: randomSpawnPoint(player.pos, world.exit, random) }];
+    }
+  }
+
   const status =
     player.health <= 0 ? "dead" : distance(player.pos, world.exit) <= EXIT_RANGE ? "escaped" : "running";
 
-  return { ...world, player, enemies, status, elapsedMs: world.elapsedMs + dtMs };
+  return {
+    ...world,
+    player,
+    enemies,
+    healthPacks,
+    freezeRechargeMs,
+    freezeBlastMs,
+    nextHealthPackMs,
+    nextId,
+    status,
+    elapsedMs: world.elapsedMs + dtMs,
+  };
 }
 
 /** Summarise the world into the small, human-readable state Jev decides on. */
 export function toDecisionRequest(world: World, instruction: string): DecisionRequest {
   const { pos, health } = world.player;
-  const nearest = nearestEnemy(pos, world.enemies);
+  const nearest = nearestOf(pos, world.enemies);
+  const pack = nearestOf(pos, world.healthPacks);
   return {
     instruction,
     playerHealth: Math.round(health),
     nearestEnemy: nearest
       ? {
-          distance: Math.round(distance(pos, nearest.pos)),
-          direction: compass(pos, nearest.pos),
+          ...place(pos, nearest.pos),
           dangerouslyClose: distance(pos, nearest.pos) <= DANGER_RANGE,
+          frozen: nearest.frozenMs > 0,
         }
       : null,
-    exit: { distance: Math.round(distance(pos, world.exit)), direction: compass(pos, world.exit) },
+    enemiesRemaining: world.enemies.length,
+    enemiesInFreezeRange: world.enemies.filter((e) => e.frozenMs === 0 && distance(pos, e.pos) <= FREEZE_RADIUS)
+      .length,
+    nearestHealthPack: pack ? place(pos, pack.pos) : null,
+    freezeRechargeSeconds: Math.ceil(world.freezeRechargeMs / 1000),
+    exit: place(pos, world.exit),
   };
+}
+
+function place(from: Vec, to: Vec) {
+  return { distance: Math.round(distance(from, to)), direction: compass(from, to) };
+}
+
+/**
+ * Unit vector away from danger: every active enemy nearby pushes (closer pushes
+ * harder), and so do the walls, so evading doesn't run into a corner. Frozen
+ * enemies are ignored because they can't hurt.
+ */
+function fleeDirection(from: Vec, enemies: World["enemies"]): Vec | null {
+  let x = 0;
+  let y = 0;
+  for (const e of enemies) {
+    const d = distance(from, e.pos);
+    if (e.frozenMs > 0 || d > 220 || d === 0) continue;
+    x += (from.x - e.pos.x) / d ** 3; // unit vector scaled by 1/d^2
+    y += (from.y - e.pos.y) / d ** 3;
+  }
+  if (x === 0 && y === 0) return null;
+  const wall = 2; // walls push harder than an enemy at the same distance, so fleeing slides along them
+  x += wall / from.x ** 2 - wall / (ARENA.width - from.x) ** 2;
+  y += wall / from.y ** 2 - wall / (ARENA.height - from.y) ** 2;
+  const len = Math.hypot(x, y);
+  return { x: x / len, y: y / len };
+}
+
+/** Somewhere open: inside the walls, not on top of the player or the exit. */
+function randomSpawnPoint(player: Vec, exit: Vec, random: () => number): Vec {
+  const m = 40;
+  for (let tries = 0; ; tries++) {
+    const p = { x: m + random() * (ARENA.width - 2 * m), y: m + random() * (ARENA.height - 2 * m) };
+    if ((distance(p, player) > 100 && distance(p, exit) > 60) || tries > 20) return p;
+  }
 }
 
 /** Push overlapping enemies apart so a crowd stays countable instead of stacking into one circle. */
@@ -125,10 +232,10 @@ function separate(enemies: { pos: Vec }[]): void {
   }
 }
 
-function nearestEnemy<T extends { pos: Vec }>(from: Vec, enemies: T[]): T | undefined {
+function nearestOf<T extends { pos: Vec }>(from: Vec, items: T[]): T | undefined {
   let best: T | undefined;
-  for (const e of enemies) {
-    if (!best || distance(from, e.pos) < distance(from, best.pos)) best = e;
+  for (const item of items) {
+    if (!best || distance(from, item.pos) < distance(from, best.pos)) best = item;
   }
   return best;
 }

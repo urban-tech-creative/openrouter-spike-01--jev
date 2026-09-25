@@ -59,7 +59,7 @@ export default function App() {
         <header className="mb-4">
           <h1 className="text-xl font-semibold">Jev Arena</h1>
           <p className="text-sm text-slate-400">
-            You don't control the green character. Give it an order; Jev (via OpenRouter) picks one of four actions
+            You don't control the green character. Give it an order; Jev (via OpenRouter) picks one of up to six actions
             every ~500ms, and ordinary TypeScript carries it out.
           </p>
         </header>

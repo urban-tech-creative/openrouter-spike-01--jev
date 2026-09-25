@@ -3,6 +3,9 @@ import { useState } from "react";
 const PRESETS = [
   "Attack them. Be reckless.",
   "Stop fighting. Avoid everyone and get to the exit.",
+  "Stay alive at all costs.",
+  "Use your freeze whenever you can.",
+  "Save your freeze for emergencies.",
   "Hold your position.",
   "Do whatever you think is best.",
 ];
