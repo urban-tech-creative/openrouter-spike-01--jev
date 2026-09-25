@@ -1,0 +1,3 @@
+# Copy to .dev.vars and fill in. Read by `npm run dev` (Wrangler) and `npm run check-jev`.
+# In deployed environments this is a Worker secret instead: `npx wrangler secret put OPENROUTER_API_KEY`
+OPENROUTER_API_KEY=

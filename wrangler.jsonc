@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "openrouter-spike-01--jev",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-24",
+
+  // The React app is served as static assets. Only /api/* reaches the Worker code.
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+
+  // The deployed Worker is an unauthenticated proxy to a billed API, so cap it.
+  // One open tab makes ~2 decisions/second (~120/min); this allows a couple of
+  // tabs per IP. Set a spend limit on the OpenRouter key too (dashboard).
+  // OPENROUTER_API_KEY is a secret: .dev.vars locally, `wrangler secret put` when deployed.
+  "ratelimits": [
+    {
+      "name": "DECIDE_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 300, "period": 60 }
+    }
+  ],
+
+  "observability": { "enabled": true }
+}
