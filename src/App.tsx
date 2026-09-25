@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Arena } from "./components/Arena.tsx";
+import { Arena, ArenaLegend } from "./components/Arena.tsx";
 import { DebugPanel } from "./components/DebugPanel.tsx";
 import { InstructionInput } from "./components/InstructionInput.tsx";
 import { createWorld, step, toDecisionRequest } from "./game/simulation.ts";
@@ -64,10 +64,18 @@ export default function App() {
           </p>
         </header>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,640px)_1fr]">
+        {/* minmax(0, ...) stops wide content (the JSON in the debug panel) stretching the column past a phone screen. */}
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,640px)_minmax(0,1fr)]">
           <div className="space-y-3">
-            <Arena world={world} action={loop.lastDecision?.action ?? null} enemyCount={ENEMY_COUNT} onStart={start} />
+            <Arena
+              world={world}
+              action={loop.lastDecision?.action ?? null}
+              confidence={loop.lastDecision?.confidence ?? null}
+              enemyCount={ENEMY_COUNT}
+              onStart={start}
+            />
             <InstructionInput current={instruction} onApply={applyInstruction} onReset={reset} />
+            <ArenaLegend />
           </div>
           <DebugPanel instruction={instruction} loop={loop} />
         </div>

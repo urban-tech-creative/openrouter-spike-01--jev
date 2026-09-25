@@ -28,30 +28,32 @@ export function InstructionInput({ current, onApply, onReset }: Props) {
   return (
     <div className="space-y-2">
       <form
-        className="flex gap-2"
+        className="space-y-2"
         onSubmit={(e) => {
           e.preventDefault();
           apply(draft);
         }}
       >
         <input
-          className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+          className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500"
           value={draft}
           maxLength={500}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Give the character an order…"
           aria-label="Instruction"
         />
-        <button className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium hover:bg-emerald-500" type="submit">
-          Order
-        </button>
-        <button
-          className="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800"
-          type="button"
-          onClick={onReset}
-        >
-          Reset
-        </button>
+        <div className="flex gap-2">
+          <button className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium hover:bg-emerald-500" type="submit">
+            Order
+          </button>
+          <button
+            className="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800"
+            type="button"
+            onClick={onReset}
+          >
+            Reset
+          </button>
+        </div>
       </form>
       <div className="flex flex-wrap gap-2">
         {PRESETS.map((p) => (
@@ -59,7 +61,7 @@ export function InstructionInput({ current, onApply, onReset }: Props) {
             key={p}
             type="button"
             onClick={() => apply(p)}
-            className={`rounded-full border px-3 py-1 text-xs ${
+            className={`rounded-full border px-3 py-1.5 text-xs sm:py-1 ${
               p === current ? "border-emerald-500 text-emerald-300" : "border-slate-700 text-slate-300 hover:bg-slate-800"
             }`}
           >

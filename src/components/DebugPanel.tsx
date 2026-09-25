@@ -67,7 +67,7 @@ export function DebugPanel({ instruction, loop }: Props) {
       </Section>
 
       <Section title="State sent to Jev">
-        <pre className="overflow-x-auto rounded bg-slate-950 p-2 text-xs text-slate-300">
+        <pre className="whitespace-pre-wrap break-words rounded bg-slate-950 p-2 text-xs text-slate-300">
           {loop.lastRequest ? JSON.stringify(loop.lastRequest, null, 2) : "–"}
         </pre>
       </Section>

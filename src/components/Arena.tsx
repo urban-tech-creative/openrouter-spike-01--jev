@@ -14,9 +14,15 @@ import {
 } from "../game/simulation.ts";
 import type { World } from "../game/types.ts";
 
-type Props = { world: World; action: JevAction | null; enemyCount: number; onStart: () => void };
+type Props = {
+  world: World;
+  action: JevAction | null;
+  confidence: number | null;
+  enemyCount: number;
+  onStart: () => void;
+};
 
-export function Arena({ world, action, enemyCount, onStart }: Props) {
+export function Arena({ world, action, confidence, enemyCount, onStart }: Props) {
   const { player, enemies, healthPacks, exit, status } = world;
   const inRange = (pos: { x: number; y: number }) => distance(pos, player.pos) <= ATTACK_RANGE;
   const hitting = (e: (typeof enemies)[number]) => e.frozenMs === 0 && inRange(e.pos);
@@ -116,10 +122,6 @@ export function Arena({ world, action, enemyCount, onStart }: Props) {
             {action ?? "…"}
           </text>
 
-          <text x={12} y={ARENA.height - 12} className="fill-slate-400 font-mono text-[12px]">
-            enemies {enemies.length}/{enemyCount} · health {Math.ceil(player.health)} · freeze{" "}
-            {freezeReady ? "READY" : `${Math.ceil(world.freezeRechargeMs / 1000)}s`}
-          </text>
         </svg>
 
         {status !== "running" && (
@@ -138,27 +140,45 @@ export function Arena({ world, action, enemyCount, onStart }: Props) {
         )}
       </div>
 
-      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
-        <li>
-          <Swatch className="border-emerald-400" /> Player attack range {ATTACK_RANGE}px: hits one enemy for {PLAYER_DPS}{" "}
-          hp/s, only while ordered to APPROACH_ENEMY
-        </li>
-        <li>
-          <Swatch className="border-rose-400" /> Enemy attack range {ATTACK_RANGE}px: each hits for {ENEMY_DPS} hp/s
-        </li>
-        <li>
-          <Swatch className="border-cyan-400" /> Freeze reach {FREEZE_RADIUS}px (shown while ready): stops enemies for{" "}
-          {FREEZE_SECONDS}s, recharges in {FREEZE_RECHARGE_SECONDS}s
-        </li>
-        <li>
-          <Swatch className="border-lime-400 border-solid" /> Health pack: +{HEALTH_PACK_HEAL} hp, appears every 6–8s (max 2)
-        </li>
-        <li>
-          <Swatch className="border-amber-400/60" /> "Dangerously close" ({DANGER_RANGE}px), as reported to Jev
-        </li>
-        <li>Rings turn solid while a hit is landing. Ranges are centre to centre.</li>
-      </ul>
+      {/* Status in normal-sized text: in the SVG it shrinks with the arena and is unreadable on a phone. */}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs text-slate-400">
+        <span className="text-emerald-300">{action ?? "…"}</span>
+        {confidence !== null && <span>conf {confidence.toFixed(2)}</span>}
+        <span>hp {Math.ceil(player.health)}</span>
+        <span>
+          enemies {enemies.length}/{enemyCount}
+        </span>
+        <span className={freezeReady ? "text-cyan-300" : undefined}>
+          freeze {freezeReady ? "READY" : `${Math.ceil(world.freezeRechargeMs / 1000)}s`}
+        </span>
+      </div>
     </div>
+  );
+}
+
+/** What the rings and numbers mean, using the same constants the simulation enforces. */
+export function ArenaLegend() {
+  return (
+    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
+      <li>
+        <Swatch className="border-emerald-400" /> Player attack range {ATTACK_RANGE}px: hits one enemy for {PLAYER_DPS}{" "}
+        hp/s, only while ordered to APPROACH_ENEMY
+      </li>
+      <li>
+        <Swatch className="border-rose-400" /> Enemy attack range {ATTACK_RANGE}px: each hits for {ENEMY_DPS} hp/s
+      </li>
+      <li>
+        <Swatch className="border-cyan-400" /> Freeze reach {FREEZE_RADIUS}px (shown while ready): stops enemies for{" "}
+        {FREEZE_SECONDS}s, recharges in {FREEZE_RECHARGE_SECONDS}s
+      </li>
+      <li>
+        <Swatch className="border-lime-400 border-solid" /> Health pack: +{HEALTH_PACK_HEAL} hp, appears every 6–8s (max 2)
+      </li>
+      <li>
+        <Swatch className="border-amber-400/60" /> "Dangerously close" ({DANGER_RANGE}px), as reported to Jev
+      </li>
+      <li>Rings turn solid while a hit is landing. Ranges are centre to centre.</li>
+    </ul>
   );
 }
 
