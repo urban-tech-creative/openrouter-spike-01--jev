@@ -14,7 +14,7 @@ Requires Node 22.18+ (the harness runs TypeScript directly with Node).
 npm install
 cp .dev.vars.example .dev.vars   # then paste your OpenRouter key into it
 npm run check-jev                # optional: sanity-check Jev from the command line
-npm run dev                      # http://localhost:5173
+npm run dev                      # http://localhost:5199
 ```
 
 `npm run dev` runs the Worker inside the real Workers runtime (via `@cloudflare/vite-plugin`), so `/api/decide` behaves locally the same way it does when deployed. Nothing is deployed or created in Cloudflare.
