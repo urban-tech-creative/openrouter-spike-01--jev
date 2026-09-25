@@ -6,21 +6,32 @@ import type { Vec, World } from "./types.ts";
 
 export const ARENA = { width: 640, height: 420 };
 
-const PLAYER_SPEED = 110; // px/s: faster than enemies, so evading can work
-const ENEMY_SPEED = 45;
-const CONTACT_RANGE = 26;
-const DANGER_RANGE = 70;
+// Exported so the UI can draw and label the real values rather than guesses.
+export const PLAYER_SPEED = 110; // px/s: faster than enemies, so evading can work
+export const ENEMY_SPEED = 45;
+export const BODY_RADIUS = 13;
+/** Centre-to-centre distance at which the player and enemies can hurt each other. Same for both sides. */
+export const ATTACK_RANGE = 26;
+/** Below this distance the state sent to Jev says the nearest enemy is "dangerouslyClose". */
+export const DANGER_RANGE = 70;
 const EXIT_RANGE = 22;
-const ENEMY_DPS = 14; // damage per second each enemy deals in contact
-const PLAYER_DPS = 45; // damage per second the player deals when attacking
+export const ENEMY_DPS = 6; // damage per second each enemy deals while in range
+export const PLAYER_DPS = 60; // damage per second the player deals to one enemy when attacking
+
+// Spread out so they arrive in ones and twos rather than all at once.
+const ENEMY_SPAWNS: Vec[] = [
+  { x: 300, y: 100 },
+  { x: 430, y: 330 },
+  { x: 240, y: 230 },
+  { x: 520, y: 200 },
+  { x: 590, y: 380 },
+  { x: 160, y: 50 },
+];
 
 export function createWorld(): World {
   return {
     player: { pos: { x: 90, y: 330 }, health: 100 },
-    enemies: [
-      { id: 1, pos: { x: 330, y: 110 }, health: 100 },
-      { id: 2, pos: { x: 430, y: 340 }, health: 100 },
-    ],
+    enemies: ENEMY_SPAWNS.map((pos, i) => ({ id: i + 1, pos: { ...pos }, health: 100 })),
     exit: { x: 580, y: 60 },
     status: "running",
     elapsedMs: 0,
@@ -39,10 +50,10 @@ export function step(world: World, action: JevAction | null, dtMs: number): Worl
   switch (action) {
     case "APPROACH_ENEMY":
       if (nearest) {
-        if (distance(player.pos, nearest.pos) > CONTACT_RANGE * 0.8) {
+        if (distance(player.pos, nearest.pos) > ATTACK_RANGE * 0.8) {
           player.pos = moveToward(player.pos, nearest.pos, PLAYER_SPEED * dt);
         }
-        if (distance(player.pos, nearest.pos) <= CONTACT_RANGE) {
+        if (distance(player.pos, nearest.pos) <= ATTACK_RANGE) {
           nearest.health -= PLAYER_DPS * dt;
         }
       }
@@ -62,13 +73,14 @@ export function step(world: World, action: JevAction | null, dtMs: number): Worl
 
   // 2. Enemies close in and hurt the player on contact.
   for (const enemy of enemies) {
-    if (distance(enemy.pos, player.pos) > CONTACT_RANGE * 0.8) {
+    if (distance(enemy.pos, player.pos) > ATTACK_RANGE * 0.8) {
       enemy.pos = moveToward(enemy.pos, player.pos, ENEMY_SPEED * dt);
     }
-    if (distance(enemy.pos, player.pos) <= CONTACT_RANGE) {
+    if (distance(enemy.pos, player.pos) <= ATTACK_RANGE) {
       player = { ...player, health: Math.max(0, player.health - ENEMY_DPS * dt) };
     }
   }
+  separate(enemies);
 
   const status =
     player.health <= 0 ? "dead" : distance(player.pos, world.exit) <= EXIT_RANGE ? "escaped" : "running";
@@ -94,6 +106,25 @@ export function toDecisionRequest(world: World, instruction: string): DecisionRe
   };
 }
 
+/** Push overlapping enemies apart so a crowd stays countable instead of stacking into one circle. */
+function separate(enemies: { pos: Vec }[]): void {
+  const minGap = BODY_RADIUS * 2;
+  for (let i = 0; i < enemies.length; i++) {
+    for (let j = i + 1; j < enemies.length; j++) {
+      const a = enemies[i].pos;
+      const b = enemies[j].pos;
+      const d = distance(a, b);
+      if (d > 0 && d < minGap) {
+        const push = (minGap - d) / 2 / d;
+        const dx = (b.x - a.x) * push;
+        const dy = (b.y - a.y) * push;
+        enemies[i].pos = { x: a.x - dx, y: a.y - dy };
+        enemies[j].pos = { x: b.x + dx, y: b.y + dy };
+      }
+    }
+  }
+}
+
 function nearestEnemy<T extends { pos: Vec }>(from: Vec, enemies: T[]): T | undefined {
   let best: T | undefined;
   for (const e of enemies) {
@@ -102,7 +133,7 @@ function nearestEnemy<T extends { pos: Vec }>(from: Vec, enemies: T[]): T | unde
   return best;
 }
 
-function distance(a: Vec, b: Vec): number {
+export function distance(a: Vec, b: Vec): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 

@@ -6,6 +6,7 @@ import { createWorld, step, toDecisionRequest } from "./game/simulation.ts";
 import type { World } from "./game/types.ts";
 import { useDecisionLoop } from "./lib/useDecisionLoop.ts";
 
+const ENEMY_COUNT = createWorld().enemies.length;
 const STARTING_INSTRUCTION = "Attack them. Be reckless.";
 
 export default function App() {
@@ -61,7 +62,7 @@ export default function App() {
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,640px)_1fr]">
           <div className="space-y-3">
-            <Arena world={world} action={loop.lastDecision?.action ?? null} />
+            <Arena world={world} action={loop.lastDecision?.action ?? null} enemyCount={ENEMY_COUNT} />
             <InstructionInput current={instruction} onApply={applyInstruction} onReset={reset} />
           </div>
           <DebugPanel instruction={instruction} loop={loop} />
