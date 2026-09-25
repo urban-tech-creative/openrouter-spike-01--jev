@@ -1,6 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "openrouter-spike-01--jev",
+  // Urban Tech Creative. Pinned so a deploy can't land in someone's personal account.
+  "account_id": "80417d88d718dbb2a033acfe6359d4f1",
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-24",
 

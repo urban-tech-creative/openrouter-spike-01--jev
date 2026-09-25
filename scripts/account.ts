@@ -43,7 +43,7 @@ function client(kind: "api" | "management"): OpenRouter {
 
 async function key() {
   const { data: k } = await client("api").apiKeys.getCurrentKeyMetadata();
-  console.log("API key (the one the Worker uses)");
+  console.log("Local API key (.dev.vars). The deployed Worker uses its own key, set as a Worker secret.");
   console.log(`  name              ${k.label.startsWith("sk-") ? "(unnamed)" : k.label}`);
   console.log(`  free tier         ${k.isFreeTier ? "yes (never purchased credits)" : "no"}`);
   console.log(`  spend today       ${usd(k.usageDaily)}`);

@@ -109,13 +109,15 @@ Things that worked well, offered as a starting point rather than a procedure:
 
 This is only possible because of how the code is split. `decide()` doesn't care whether it's called by the Worker or a script. `src/game/simulation.ts` is plain functions with injectable randomness, so it can run without a browser. The arena publishes its live state as `data-*` attributes, so automation doesn't have to scrape the screen. Worth keeping when you copy this pattern.
 
-## Deploying (when ready)
+## Deploying
 
-Not done yet. When you want a shareable URL:
+Live at <https://openrouter-spike-01--jev.urban-tech-creative.workers.dev> (Urban Tech Creative's Cloudflare account, pinned by `account_id` in `wrangler.jsonc`).
 
-1. Set a **spend limit** on the OpenRouter key in the OpenRouter dashboard. The deployed Worker is an unauthenticated proxy, rate-limited to 300 requests per minute per IP (see `wrangler.jsonc`).
-2. `npx wrangler login`
-3. `npx wrangler secret put OPENROUTER_API_KEY`
-4. `npm run deploy`
+The deployed Worker uses its own OpenRouter key with a low spend limit, separate from the local one in `.dev.vars`, so public spend is tracked separately and the key can be revoked without affecting local work. To deploy from scratch:
+
+1. Create an OpenRouter key for the deployment, with a low **spend limit**. The deployed Worker is an unauthenticated proxy, rate-limited to 300 requests per minute per IP (see `wrangler.jsonc`).
+2. `npx wrangler login`, with access to the account in `wrangler.jsonc`.
+3. `npm run deploy`. The page works straight away; `/api/decide` reports that the key isn't set until step 4.
+4. Add the key as a Worker secret named `OPENROUTER_API_KEY`: `npx wrangler secret put OPENROUTER_API_KEY`, or in the dashboard under the Worker's Settings → Variables and Secrets (type **Secret**).
 
 Never put the key in a `VITE_*` variable. Vite bundles those into browser code.
