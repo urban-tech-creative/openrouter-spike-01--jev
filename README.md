@@ -77,6 +77,38 @@ From `npm run check-jev` experiments and watching full games. Each result is a s
 
 Balance, for reference (offline, 200 seeded games with scripted policies): charging in alone never clears the room, health packs alone clear it 21% of the time, and freezing well plus picking up health clears it 76%. So the outcome depends on how well Jev uses the tools, not on luck.
 
+## Experimenting with Jev
+
+Every finding above came from a small experiment, most of them run unattended by a coding agent. There are three kinds, from cheapest to most realistic:
+
+| Question | Command | Cost | How it works |
+| --- | --- | --- | --- |
+| How does Jev read *this situation*? | `npm run check-jev` | ~$0.0005, seconds | Calls `decide()` from `worker/jev.ts` directly, with hand-written states. No game, no browser. |
+| Are the game rules sound? | `npm run balance` | free, ~1s | Plays hundreds of seeded games with scripted stand-ins for Jev. No network. |
+| What does Jev do *over a whole game*? | `npm run play-games` | ~$0.001 a game | Drives the real app in a headless browser and logs every decision. Needs `npm run dev` running, and `npx playwright install chromium` once. |
+
+A `play-games` run reads like a match report:
+
+```
+## "Use your freeze whenever you can."
+    1.7s  APPROACH_ENEMY  hp 100, enemies 6, freeze ready
+    2.1s  ❄ froze 1 enemy
+    2.1s  FREEZE          hp 100, enemies 6 (1 frozen), freeze 8s
+    3.0s  WAIT            hp 100, enemies 6 (1 frozen), freeze 8s
+  => DEAD at 8.1s, 0 hp, 6 enemies left
+```
+
+It froze one straggler, then stood still for five seconds while being killed: the order only mentioned freezing, and freezing wasn't available. That's the kind of thing you only see over a whole game. `check-jev` then turns it into a precise question you can ask again and again.
+
+Things that worked well, offered as a starting point rather than a procedure:
+
+- **Change one thing at a time.** `check-jev` holds the situation fixed and varies only the order, or holds the order fixed and varies one fact. When the probabilities move, you know what moved them.
+- **Suspect the wording before the model.** Jev seemed to ignore `frozen: true`. Rewording it as `"FROZEN: cannot move or attack right now"` and rerunning the same pair showed the wording mattered, but only partly. That makes it a real finding rather than a phrasing accident.
+- **Separate game problems from Jev problems.** Under "stay alive", Jev chose EVADE the whole time and still died, because the movement code ran into a corner. `balance` made that obvious (pure evading: 0/100 games survived) and confirmed the fix (100/100). Blaming Jev would have been wrong.
+- **One game is one sample.** Jev's probabilities vary slightly from call to call, and a full game compounds that. Use `--runs` to repeat, and trust controlled pairs over one dramatic game.
+
+This is only possible because of how the code is split. `decide()` doesn't care whether it's called by the Worker or a script. `src/game/simulation.ts` is plain functions with injectable randomness, so it can run without a browser. The arena publishes its live state as `data-*` attributes, so automation doesn't have to scrape the screen. Worth keeping when you copy this pattern.
+
 ## Deploying (when ready)
 
 Not done yet. When you want a shareable URL:

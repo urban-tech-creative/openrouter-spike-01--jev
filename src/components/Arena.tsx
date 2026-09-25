@@ -32,6 +32,16 @@ export function Arena({ world, action, enemyCount, onStart }: Props) {
           className="w-full rounded-lg border border-slate-800 bg-slate-900"
           role="img"
           aria-label="Arena"
+          // Live state for scripts/play-games.ts (and any other automation) to read,
+          // so it doesn't have to scrape the rendered text.
+          data-status={status}
+          data-action={action ?? ""}
+          data-health={Math.ceil(player.health)}
+          data-enemies={enemies.length}
+          data-frozen={enemies.filter((e) => e.frozenMs > 0).length}
+          data-health-packs={healthPacks.length}
+          data-freeze-recharge={Math.ceil(world.freezeRechargeMs / 1000)}
+          data-elapsed={Math.round(world.elapsedMs)}
         >
           <rect x={exit.x - 22} y={exit.y - 22} width={44} height={44} rx={6} className="fill-sky-500/20 stroke-sky-400" />
           <text x={exit.x} y={exit.y + 4} textAnchor="middle" className="fill-sky-300 text-[11px] font-semibold">
