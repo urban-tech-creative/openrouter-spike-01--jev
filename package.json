@@ -10,7 +10,8 @@
     "deploy": "vite build && wrangler deploy",
     "typecheck": "tsc -b",
     "types": "wrangler types",
-    "check-jev": "node --env-file=.dev.vars scripts/check-jev.ts"
+    "check-jev": "node --env-file=.dev.vars scripts/check-jev.ts",
+    "account": "node --env-file=.dev.vars scripts/account.ts"
   },
   "dependencies": {
     "@openrouter/sdk": "^1.3.27",

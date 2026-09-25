@@ -21,6 +21,19 @@ npm run dev                      # http://localhost:5199
 
 A demo session costs well under a tenth of a cent: Jev charges only for input tokens, and each decision costs about $0.00002.
 
+## Checking your OpenRouter account
+
+`scripts/account.ts` is a read-only command-line inspector. It isn't part of the app.
+
+```sh
+npm run account                        # this key: spend today/week/month, spend limit, free-tier status
+npm run account -- generation <id>     # cost, latency and provider for one request (stats land ~10s after it)
+npm run account -- credits             # account balance: credits granted vs used
+npm run account -- activity            # last 30 completed UTC days, by model
+```
+
+`credits` and `activity` need a **management key**. OpenRouter doesn't show account balance to ordinary API keys. Create one at <https://openrouter.ai/settings/management-keys> and put it in `.env.admin` (gitignored) as `OPENROUTER_MANAGEMENT_KEY=...`. Keep it out of `.dev.vars`: Wrangler loads that file into the Worker, and a management key can create and delete API keys.
+
 ## What's reusable
 
 To call a decision model from another UTC project, copy these files:
